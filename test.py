@@ -1,5 +1,5 @@
 #
-# Test script to check if the API emulation works
+# Dirty test script to check if the API emulation works
 #
 
 from door import DoorClient
