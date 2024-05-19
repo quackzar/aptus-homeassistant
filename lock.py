@@ -32,6 +32,7 @@ from homeassistant.components.lock import LockEntity, PLATFORM_SCHEMA
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, CONF_HOST
 from datetime import timedelta
 
+from . import door
 
 # The domain of your component. Should be equal to the name of your component.
 _LOGGER = logging.getLogger(__name__)
@@ -45,7 +46,6 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_PASSWORD): cv.string,
 })
 
-from . import door
 
 async def async_setup_platform(
     hass: HomeAssistant,
@@ -85,7 +85,7 @@ class Coordinator(DataUpdateCoordinator):
         return await self.client.status_update()
 
     async def reset(self):
-        ok, msg = await door.login(self.session, self.username, self.password, self.host)
+        ok, msg = await self.client.login()
         if not ok:
             _LOGGER.fatal(f"Could not login: {msg}")
             raise ConfigEntryAuthFailed
