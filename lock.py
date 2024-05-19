@@ -95,31 +95,38 @@ class AptusHomeLock(CoordinatorEntity, LockEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "aptus_lock"
 
+
     def __init__(self, coordinator: Coordinator) -> None:
         super().__init__(coordinator)
         # self.idx = idx
         self._attr_unique_id = 'apartment_door'
-        self._attr_low_battery = self.coordinator.data['BatteryLevelLow']
-        self._attr_is_locked = self.coordinator.data['IsClosedAndLocked']
-        if self.coordinator.data['StatusText'] == 'Door is open':
-            self._attr_door_open = True
-            self._attr_is_jammed = True
-        else:
-            self._attr_door_open = False
-            self._attr_is_jammed = False
+        self._attr_low_battery = door.BatteryStatus.NORMAL
+        self._attr_state = door.DoorStatus.UNKNOWN
+
 
     @callback
     def _handle_coordinator_update(self) -> None:
-        self._attr_low_battery = self.coordinator.data['BatteryLevelLow']
-        self._attr_is_locked = self.coordinator.data['IsClosedAndLocked']
+        match self.coordinator.data[1]:
+            case door.BatteryStatus.LOW:
+                self._attr_low_battery = True
+            case door.BatteryStatus.NORMAL:
+                self._attr_low_battery = False
 
-        if self.coordinator.data['StatusText'] == 'Door is open':
-            self._attr_door_open = True
-            # self._attr_is_jammed = True
-        else:
-            self._attr_door_open = False
-            self._attr_is_jammed = False
-
+        self._attr_state = self.coordinator.data[0]
+        match self._attr_state:
+            case door.DoorStatus.UNLOCKED:
+                self._attr_door_open = True
+                # self._attr_is_jammed = True
+                pass
+            case door.DoorStatus.LOCKED:
+                self._attr_door_open = False
+                self._attr_is_jammed = False
+                pass
+            case door.DoorStatus.JAMMED:
+                self._attr_is_jammed = True
+                pass
+            case door.DoorStatus.UNKNOWN:
+                pass
         self.async_write_ha_state()
 
 
@@ -130,18 +137,18 @@ class AptusHomeLock(CoordinatorEntity, LockEntity):
         resp = await self.coordinator.client.lock()
         self._attr_is_locking = False
         self.async_write_ha_state()
-        if resp.status != 200:
-            _LOGGER.error(f"Could not lock door: {resp.text}")
-            # TODO: Handle door not closed
-            #  code 409
-            # {"errorMessage":"Could not lock door.","HeaderStatusText":"Status"}
-            # TODO: Handle other errors
-            self._attr_is_jammed = True
-        else:
-            self._attr_is_locked = True
-            self._attr_is_jammed = False
+        match resp:
+            case door.DoorStatus.JAMMED:
+                self._attr_is_jammed = True
+                pass
+            case door.DoorStatus.LOCKED:
+                self._attr_state = True
+                self._attr_is_jammed = False
+            case _:
+                _LOGGER.error(f"Unexpected outcome while locking: {resp}")
+                pass
         self.async_write_ha_state()
-        # await self.coordinator.async_request_refresh()
+
 
     async def async_unlock(self, **kwargs: Any) -> None:
         self._attr_is_unlocking = True
@@ -149,15 +156,17 @@ class AptusHomeLock(CoordinatorEntity, LockEntity):
         resp = await self.coordinator.client.unlock()
         self._attr_is_unlocking = False
         self.async_write_ha_state()
-        if resp.status != 200:
-            # TODO: Handle errors
-            _LOGGER.error(f"Could not unlock door: {resp.text}")
-            self._attr_is_jammed = True
-        else:
-            self._attr_is_locked = False
-            self._attr_is_jammed = False
+        match resp:
+            case door.DoorStatus.JAMMED:
+                self._attr_is_jammed = True
+                pass
+            case door.DoorStatus.UNLOCKED:
+                self._attr_state = False
+                self._attr_is_jammed = False
+            case _:
+                _LOGGER.error(f"Unexpected outcome while unlocking: {resp}")
+                pass
         self.async_write_ha_state()
-        # await self.coordinator.async_request_refresh()
 
 
 class AptusEntry(LockEntity, CoordinatorEntity):
