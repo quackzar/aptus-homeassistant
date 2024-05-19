@@ -100,7 +100,6 @@ class AptusHomeLock(CoordinatorEntity, LockEntity):
 
     def __init__(self, coordinator: Coordinator) -> None:
         super().__init__(coordinator)
-        # self.idx = idx
         self._attr_unique_id = 'apartment_door'
         self._attr_low_battery = door.BatteryStatus.NORMAL
         self._attr_state = door.DoorStatus.UNKNOWN
@@ -143,6 +142,7 @@ class AptusHomeLock(CoordinatorEntity, LockEntity):
         match resp:
             case door.DoorStatus.JAMMED:
                 self._attr_is_jammed = True
+                self._attr_is_locked = False
                 pass
             case door.DoorStatus.LOCKED:
                 self._attr_is_jammed = False
@@ -162,6 +162,7 @@ class AptusHomeLock(CoordinatorEntity, LockEntity):
         match resp:
             case door.DoorStatus.JAMMED:
                 self._attr_is_jammed = True
+                self._attr_is_locked = False
                 pass
             case door.DoorStatus.UNLOCKED:
                 self._attr_is_locked = False
@@ -191,7 +192,6 @@ class AptusEntry(LockEntity, CoordinatorEntity):
         if success:
             _LOGGER.error("Could not unlock entry door")
             return
-
         self._attr_is_locked = False
         self.async_write_ha_state()
         await asyncio.sleep(3)
