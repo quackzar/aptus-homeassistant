@@ -82,9 +82,7 @@ class Coordinator(DataUpdateCoordinator):
         self.client = door.DoorClient(host, username, password)
 
     async def _async_update_data(self):
-        door, battery =  await self.client.status_update()
-        self._attr_state = door
-        return (door, battery)
+        return await self.client.status_update()
 
     async def reset(self):
         ok, msg = await self.client.login()
@@ -101,8 +99,8 @@ class AptusHomeLock(CoordinatorEntity, LockEntity):
     def __init__(self, coordinator: Coordinator) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = 'apartment_door'
-        self._attr_low_battery = door.BatteryStatus.NORMAL
-        self._attr_state = door.DoorStatus.UNKNOWN
+        self._attr_low_battery = False
+        self._attr_is_locked = True
 
 
     @callback
