@@ -82,7 +82,9 @@ class Coordinator(DataUpdateCoordinator):
         self.client = door.DoorClient(host, username, password)
 
     async def _async_update_data(self):
-        return await self.client.status_update()
+        door, battery =  await self.client.status_update()
+        self._attr_state = door
+        return (door, battery)
 
     async def reset(self):
         ok, msg = await self.client.login()
@@ -112,14 +114,15 @@ class AptusHomeLock(CoordinatorEntity, LockEntity):
             case door.BatteryStatus.NORMAL:
                 self._attr_low_battery = False
 
-        self._attr_state = self.coordinator.data[0]
-        match self._attr_state:
+        match self.coordinator.data[0]:
             case door.DoorStatus.UNLOCKED:
                 self._attr_door_open = True
-                # self._attr_is_jammed = True
+                self._attr_is_locked = False
+                self._attr_is_jammed = False
                 pass
             case door.DoorStatus.LOCKED:
                 self._attr_door_open = False
+                self._attr_is_locked = True
                 self._attr_is_jammed = False
                 pass
             case door.DoorStatus.JAMMED:
@@ -142,8 +145,8 @@ class AptusHomeLock(CoordinatorEntity, LockEntity):
                 self._attr_is_jammed = True
                 pass
             case door.DoorStatus.LOCKED:
-                self._attr_state = True
                 self._attr_is_jammed = False
+                self._attr_is_locked = True
             case _:
                 _LOGGER.error(f"Unexpected outcome while locking: {resp}")
                 pass
@@ -161,7 +164,7 @@ class AptusHomeLock(CoordinatorEntity, LockEntity):
                 self._attr_is_jammed = True
                 pass
             case door.DoorStatus.UNLOCKED:
-                self._attr_state = False
+                self._attr_is_locked = False
                 self._attr_is_jammed = False
             case _:
                 _LOGGER.error(f"Unexpected outcome while unlocking: {resp}")
