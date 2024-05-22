@@ -84,7 +84,11 @@ class DoorClient:
     async def status_update(self) -> Tuple[DoorStatus, BatteryStatus]:
         await set_status_temp(self.session, self.host)
         resp = await door_status(self.session, self.host)
-        data = await resp.json()
+        try:
+            data = await resp.json()
+        except Exception:
+            return (DoorStatus.UNKNOWN, BatteryStatus.NORMAL)
+
         battery = BatteryStatus.LOW if data['BatteryLevelLow'] else BatteryStatus.NORMAL
         status = DoorStatus.LOCKED if data['IsClosedAndLocked'] else DoorStatus.UNLOCKED
         if data['StatusText'] == 'Door is open':

@@ -12,7 +12,7 @@ lock:
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Tuple
 import logging
 import voluptuous as vol
 import homeassistant.helpers.config_validation as cv
@@ -81,8 +81,17 @@ class Coordinator(DataUpdateCoordinator):
         )
         self.client = door.DoorClient(host, username, password)
 
-    async def _async_update_data(self):
-        return await self.client.status_update()
+    async def _async_update_data(self) -> Tuple[door.DoorStatus, door.BatteryStatus]:
+        door_status, battery_status = await self.client.status_update()
+        match door_status:
+            case door.DoorStatus.UNKNOWN:
+                _LOGGER.info("Door status UNKNOWN, resetting login")
+                await self.reset()
+            case _:
+                # Everything went well
+                pass
+
+        return door_status, battery_status
 
     async def reset(self):
         ok, msg = await self.client.login()
