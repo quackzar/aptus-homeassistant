@@ -71,6 +71,12 @@ async def async_setup_platform(
 
 class Coordinator(DataUpdateCoordinator):
     client: door.DoorClient
+    # Amounts of failed updates we have
+    fail_count = 0
+    # Amounts of failed updates we tolerate before resetting
+    fail_threshold = 10
+
+    # TODO: Add automatic recovery in case of connection loss on fatal.
 
     def __init__(self, hass: HomeAssistant, host: str, username: str, password: str):
         super().__init__(
@@ -85,11 +91,21 @@ class Coordinator(DataUpdateCoordinator):
         door_status, battery_status = await self.client.status_update()
         match door_status:
             case door.DoorStatus.UNKNOWN:
-                _LOGGER.info("Door status UNKNOWN, resetting login")
-                await self.reset()
+                self.fail_count += 1
+                _LOGGER.warning(f"Status returned ({door_status}, {battery_status}), attempt {self.fail_count}")
             case _:
                 # Everything went well
+                self.fail_count = 0
                 pass
+
+        # Try resetting
+        if self.fail_count > self.fail_threshold:
+            _LOGGER.warning(f"Failed to update status after {self.fail_count} attempts (threshold = {self.fail_threshold})")
+            await self.reset()
+            door_status, battery_status = await self.client.status_update()
+            self.fail_count = 0
+            # Maybe crash if we don't succed after this?
+            # Maybe sleep for a while and try again, in case of network issues.
 
         return door_status, battery_status
 
@@ -120,22 +136,28 @@ class AptusHomeLock(CoordinatorEntity, LockEntity):
             case door.BatteryStatus.NORMAL:
                 self._attr_low_battery = False
 
+        self.assumed_state = False
+        self._attr_available = True
         match self.coordinator.data[0]:
             case door.DoorStatus.UNLOCKED:
-                self._attr_door_open = True
                 self._attr_is_locked = False
                 self._attr_is_jammed = False
                 pass
             case door.DoorStatus.LOCKED:
-                self._attr_door_open = False
                 self._attr_is_locked = True
                 self._attr_is_jammed = False
                 pass
             case door.DoorStatus.JAMMED:
                 self._attr_is_jammed = True
+                self._attr_is_locked = False
                 pass
             case door.DoorStatus.UNKNOWN:
+                # Do not update the status.
+                # Maybe we lost connection.
+                self._attr_assumed_state = True
+                self._attr_available = False
                 pass
+
         self.async_write_ha_state()
 
 
@@ -145,7 +167,6 @@ class AptusHomeLock(CoordinatorEntity, LockEntity):
         self.async_write_ha_state()
         resp = await self.coordinator.client.lock()
         self._attr_is_locking = False
-        self.async_write_ha_state()
         match resp:
             case door.DoorStatus.JAMMED:
                 self._attr_is_jammed = True
@@ -165,7 +186,6 @@ class AptusHomeLock(CoordinatorEntity, LockEntity):
         self.async_write_ha_state()
         resp = await self.coordinator.client.unlock()
         self._attr_is_unlocking = False
-        self.async_write_ha_state()
         match resp:
             case door.DoorStatus.JAMMED:
                 self._attr_is_jammed = True

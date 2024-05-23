@@ -85,6 +85,7 @@ class DoorClient:
         await set_status_temp(self.session, self.host)
         resp = await door_status(self.session, self.host)
         try:
+            # TODO: Better logging here
             data = await resp.json()
         except Exception:
             return (DoorStatus.UNKNOWN, BatteryStatus.NORMAL)
