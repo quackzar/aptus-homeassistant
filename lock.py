@@ -87,16 +87,17 @@ class Coordinator(DataUpdateCoordinator):
         )
         self.client = door.DoorClient(host, username, password)
 
-    async def _async_update_data(self) -> Tuple[door.DoorStatus, door.BatteryStatus]:
-        door_status, battery_status = await self.client.status_update()
-        match door_status:
-            case door.DoorStatus.UNKNOWN:
-                self.fail_count += 1
-                _LOGGER.warning(f"Status returned ({door_status}, {battery_status}), attempt {self.fail_count}")
-            case _:
-                # Everything went well
-                self.fail_count = 0
-                pass
+    async def _async_update_data(self) -> tuple[door.DoorStatus, door.BatteryStatus]:
+        try:
+            door_status, battery_status = await self.client.status_update()
+        except Exception as err:
+            self.fail_count += 1
+            _LOGGER.warning(f"Exception: {err}, attempt {self.fail_count}")
+            door_status = door.DoorStatus.UNKNOWN
+            battery_status = door.BatteryStatus.NORMAL
+        else:
+            self.fail_count = 0
+            pass
 
         # Try resetting
         if self.fail_count > self.fail_threshold:

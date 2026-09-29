@@ -1,7 +1,7 @@
 {
   "domain": "aptus_home",
   "name": "Aptus Home Lock",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "codeowners": ["@quacktiamauct"],
   "dependencies": [],
   "iot_class": "cloud_polling",
